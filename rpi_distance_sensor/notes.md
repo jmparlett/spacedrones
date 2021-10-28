@@ -9,7 +9,7 @@ Trig: blue\
 Echo: yellow\
 Grnd: black
 
-##Pin mapping
+## Pin mapping
 VCC: pin 2\
 gnd: pin 6\
 trig: pin 16 (BCM 23 so trig pin is 23 in code)\
