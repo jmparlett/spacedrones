@@ -8,7 +8,7 @@ speed_constant = 17150 #speed of sound at sea level = 343ms. Remember speed of s
 trig = 23 #pin 16
 echo = 24 #pin 18
 
-def distance():
+def getDistance():
     print("were measureing distance")
 
     gpio.setup(trig,gpio.OUT) #trig is out since it is the receving signal on the sensor. It tells it to send
@@ -43,4 +43,10 @@ def distance():
                                                  # sensor tells us time it takes to reach and return from target so we divide by 2.
     distance  = speed_constant*pulse_duration
     distance = round(distance,2) # for neatness
-    print(f"Distance to object in CM: {distance}")
+    return distance
+
+if __name__ == "__main__":
+    while(1):
+        getDistance()
+        time.sleep(2)
+
