@@ -9,14 +9,14 @@ trig = 23 #pin 16
 echo = 24 #pin 18
 
 def getDistance():
-    print("were measureing distance")
+    #  print("were measureing distance")
 
     gpio.setup(trig,gpio.OUT) #trig is out since it is the receving signal on the sensor. It tells it to send
     gpio.setup(echo,gpio.IN)  #echo is the signal sent when a sound wave gets back to the sensor
 
     gpio.output(trig,False) #output should be 0 or "set low"
 
-    print("sensor settling")
+    #  print("sensor settling")
 
     time.sleep(2)# stop ececuting for 2 seconds
 
