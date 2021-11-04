@@ -56,5 +56,5 @@ tag = np.zeros((300, 300, 1), dtype="uint8")
 cv2.aruco.drawMarker(arucodict, args["id"], 300, tag, 1)
 
 cv2.imwrite(args["output"], tag)
-#  cv2.imshow("ArUCo Tag", tag)
-#  cv2.waitKey(0)
+cv2.imshow("ArUCo Tag", tag)
+cv2.waitKey(0)
