@@ -4,7 +4,7 @@ import numpy as np
 import cv2
 
 imgSize= 1200
-#test test
+
 # Dict_4x4_50 the 4x4 denotes denotes 4*4 = 16 bits in the image
 # the 50 denotes that there are 50 unique markers of this type
 ARUCO_DICT = {
