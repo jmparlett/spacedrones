@@ -25,3 +25,11 @@ We'll connect to pins 4,6,8, and 10 on the RPI
 
 ## Including pinout here for reference
 ![Pinout](imgs/pinout.png)
+
+## Getting a Mavproxy shell
+The command to open mav proxy connection should be `python3 mavproxy.py --master=/dev/serial0 --baudrate 921600 --aircraft <directory path where logs will be saved>`, since we will be
+setting up the connection on serial0. Also the baudrate might be optional as mavproxy states that it should detect it automatically.
+
+Looks like we can use `[` then a label or property to echo it to cmdline.
+
+
