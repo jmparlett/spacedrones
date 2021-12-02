@@ -32,4 +32,12 @@ setting up the connection on serial0. Also the baudrate might be optional as mav
 
 Looks like we can use `[` then a label or property to echo it to cmdline.
 
+## Pixhawk firmware
+We installed fmuv2 firmware in mission planner
 
+We set firmware params and saved file in git root
+```
+SERIAL2_PROTOCOL = 2 (the default) to enable MAVLink 2 on the serial port.
+SERIAL2_BAUD = 921 so the flight controller can communicate with the RPi at 921600 baud.
+LOG_BACKEND_TYPE = 3 if you are using APSync to stream the dataflash log files to the RP
+```
