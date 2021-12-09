@@ -81,3 +81,4 @@ velocity based movement to work in simulation, but that will be our prefered mod
 2. `python dronekit_basics.py -c 127.0.0.1:14550` This command should takeoff and move to 2 points before returning home and landing.
 You should be able to observe takeoff and landing in the map provided by mav proxy.
 
+![nav](dronemove.png)
