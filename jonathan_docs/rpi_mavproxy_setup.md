@@ -32,6 +32,10 @@ setting up the connection on serial0. Also the baudrate might be optional as mav
 
 Looks like we can use `[` then a label or property to echo it to cmdline.
 
+In out current it looks like all the mavproxy files and run when called. Command to open sessions is just
+`mavproxy.py --master=/dev/serial0 --baudrate <baudrate> --aircraft <directory path where logs will be saved>`
+
+baud rate as of writing this is set to 576600 but we can change it as needed through mission planner.
 ## Pixhawk firmware
 We installed fmuv2 firmware in mission planner
 
