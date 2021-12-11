@@ -96,6 +96,12 @@ while True:
             cv2.putText(frame, str(markerID),
             (topLeft[0], topLeft[1] - 15),
             cv2.FONT_HERSHEY_SIMPLEX,0.5, (0, 255, 0), 2)
+            print("Info: Marker ID: {}".format(markerID))
+            print("Info Top Left Corner: ({}, {})".format(topLeft[0], topLeft[1]))
+            print("Info Top Right Corner: ({}, {})".format(topRight[0], topRight[1]))
+            print("Info Bottom Left Corner: ({}, {})".format(bottomLeft[0], bottomLeft[1]))
+            print("Info Bottom Right Corner: ({}, {})".format(bottomRight[0], bottomRight[1]))
+
 
     # show the output frame
     cv2.imshow("Frame", frame)
