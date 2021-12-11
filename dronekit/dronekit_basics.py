@@ -1,5 +1,5 @@
 ############## Dependecies ################
-from dronekit import connect, VehicleMode, LocationGlobalRelative, APIException
+from dronekit import connect, VehicleMode, LocationGlobal,LocationGlobalRelative, APIException
 ### Standard packages ###
 import time
 import socket
@@ -28,7 +28,7 @@ def connectMyCopter():
 
     return vehicle
 
-def arm_and_takeoff(aTargetAltitude):
+def arm_and_takeoff(aTargetAltitude, vehicle):
     """
     Arms vehicle and fly to aTargetAltitude.
     stolen from https://dronekit-python.readthedocs.io/en/latest/guide/taking_off.html
@@ -64,21 +64,28 @@ def arm_and_takeoff(aTargetAltitude):
         time.sleep(1)
 
 ####### Movement (by velocity) ########## 
-def set_velocity_body(Vx,Vy,Vz):
+def send_ned_velocity(velocity_x, velocity_y, velocity_z, duration, vehicle):
+    """
+    Move vehicle in direction based on specified velocity vectors.
+    """
     # we control movement by setting velocity in the x,y,z coord system
     # we have to craft a mavlink msg from scratch to accomplish this
     msg = vehicle.message_factory.set_position_target_local_ned_encode(
-            0,
-            0,0,
-            mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED,
-            0b0000111111000111, # bitmask for velocity field of msg
-            0, 0, 0, # position
-            Vx,Vy,Vz, # velocity
-            0, 0, 0, #acceleration
-            0,0)
-    vehicle.send_mavlink(msg)
-    vehicle.flush()
+        0,       # time_boot_ms (not used)
+        0, 0,    # target system, target component
+        mavutil.mavlink.MAV_FRAME_LOCAL_NED, # frame
+        0b0000111111000111, # type_mask (only speeds enabled)
+        0, 0, 0, # x, y, z positions (not used)
+        velocity_x, velocity_y, velocity_z, # x, y, z velocity in m/s
+        0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
+        0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
 
+
+    # send command to vehicle on 1 Hz cycle
+    for x in range(0,duration):
+        vehicle.send_mavlink(msg)
+        vehicle.flush()
+        time.sleep(.5)
 # velocity command with +x being true NORTH of earth
 def send_global_ned_velocity(Vx,Vy,Vz):
     # we control movement by setting velocity in the x,y,z coord system
@@ -94,6 +101,76 @@ def send_global_ned_velocity(Vx,Vy,Vz):
             0,0)
     vehicle.send_mavlink(msg)
     vehicle.flush()
+
+#################### GOTO for movement by n/e from current locations in meters #######################
+def get_location_metres(original_location, dNorth, dEast):
+    """
+    Returns a LocationGlobal object containing the latitude/longitude `dNorth` and `dEast` metres from the
+    specified `original_location`. The returned LocationGlobal has the same `alt` value
+    as `original_location`.
+    The function is useful when you want to move the vehicle around specifying locations relative to
+    the current vehicle position.
+    The algorithm is relatively accurate over small distances (10m within 1km) except close to the poles.
+    For more information see:
+    http://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters
+    """
+    earth_radius = 6378137.0 #Radius of "spherical" earth
+    #Coordinate offsets in radians
+    dLat = dNorth/earth_radius
+    dLon = dEast/(earth_radius*math.cos(math.pi*original_location.lat/180))
+
+    #New position in decimal degrees
+    newlat = original_location.lat + (dLat * 180/math.pi)
+    newlon = original_location.lon + (dLon * 180/math.pi)
+    if type(original_location) is LocationGlobal:
+        targetlocation=LocationGlobal(newlat, newlon,original_location.alt)
+    elif type(original_location) is LocationGlobalRelative:
+        targetlocation=LocationGlobalRelative(newlat, newlon,original_location.alt)
+    else:
+        raise Exception("Invalid Location object passed")
+
+    return targetlocation;
+
+
+def get_distance_metres(aLocation1, aLocation2):
+    """
+    Returns the ground distance in metres between two LocationGlobal objects.
+    This method is an approximation, and will not be accurate over large distances and close to the
+    earth's poles. It comes from the ArduPilot test code:
+    https://github.com/diydrones/ardupilot/blob/master/Tools/autotest/common.py
+    """
+    dlat = aLocation2.lat - aLocation1.lat
+    dlong = aLocation2.lon - aLocation1.lon
+    return math.sqrt((dlat*dlat) + (dlong*dlong)) * 1.113195e5
+
+
+def goto(dNorth, dEast, vehicle, win):
+    gotoFunction=vehicle.simple_goto
+    currentLocation=vehicle.location.global_relative_frame
+    targetLocation=get_location_metres(currentLocation, dNorth, dEast)
+    targetDistance=get_distance_metres(currentLocation, targetLocation)
+    gotoFunction(targetLocation)
+
+    prevRemainingDistance=0
+    repCount=0 #number of times we've encountered to same distance
+    while vehicle.mode.name=="GUIDED": #Stop action if we are no longer in guided mode.
+        
+        if repCount > 4:
+            break # we're stuck in a loop better to leave
+        remainingDistance=get_distance_metres(vehicle.location.global_frame, targetLocation)
+        if remainingDistance==prevRemainingDistance:
+            repCount+=1
+        # graphical control stuff
+        win.addstr("\nDistance to target: "+str(remainingDistance)+"\n")
+        win.refresh()
+        #  if remainingDistance<=targetDistance*0.1: #Just below target, in case of undershoot.
+        if remainingDistance<=targetDistance*0.25: #Just below target, in case of undershoot.
+            print("Reached target")
+            break;
+        time.sleep(2)
+        prevRemainingDistance=remainingDistance
+
+
 
 ############ Main ##############
 if __name__ == "__main__":
@@ -112,41 +189,15 @@ if __name__ == "__main__":
     # -y = east (right)
 
     ############# Local Ned Velocity ################
-    #  counter=0
-    #  while counter < 20:
-        #  set_velocity_body(1,0,0)
-        #  print("Moving forward")
-        #  time.sleep(1)
-        #  counter+=1
-#
-    #  sleep so we can see progress
-    #  time.sleep(1)
-#
-    #  counter=0
-    #  while counter < 20:
-        #  set_velocity_body(-1,0,0)
-        #  print("Moving backward")
-        #  time.sleep(1)
-        #  counter+=1
-#
-    #  time.sleep(1)
-#
-    #  counter=0
-    #  while counter < 20:
-        #  set_velocity_body(0,1,0)
-        #  print("Moving left")
-        #  time.sleep(1)
-        #  counter+=1
-#
-    #  time.sleep(1)
-#
-    #  counter=0
-    #  while counter < 20:
-        #  set_velocity_body(0,-1,0)
-        #  print("Moving right")
-        #  time.sleep(1)
-        #  counter+=1
-#
+    #  print("Move 1")
+    #  send_ned_velocity(1, 0, 0, 10)
+    #  print("Move 2")
+    #  send_ned_velocity(0, 1, 0, 10)
+    #  print("Move 3")
+    #  send_ned_velocity(-1, 0, 0, 10)
+    #  print("Move 4")
+    #  send_ned_velocity(0, -1, 0, 10)
+
     ############ global Ned Velocity ################
     #  counter=0
     #  while counter < 20:
@@ -192,27 +243,32 @@ if __name__ == "__main__":
 
     ################### MOVEMENT BY SIMPLE_GOTO/AIRSPEED START #######################
     print("Set default/target airspeed to 3")
-    vehicle.airspeed = 3
+    #  vehicle.airspeed = 3
 
     print("Going towards first point for 30 seconds ...")
-    point1 = LocationGlobalRelative(-35.361354, 149.165218, 20)
-    vehicle.simple_goto(point1)
+    #  point1 = LocationGlobalRelative(10, 0, 20)
+    #  vehicle.simple_goto(point1)
+    #  send_ned_velocity(100, 0, 0, 30,vehicle)
+    #  send_ned_velocity(0, 100, 0, 30, vehicle)
+    goto(-10,0,vehicle.simple_goto)
 
-    # sleep so we can see the change in map
-    time.sleep(30)
+    #  sleep so we can see the change in map
+    #  time.sleep(30)
 
     print("Going towards second point for 30 seconds (groundspeed set to 10 m/s) ...")
-    point2 = LocationGlobalRelative(-35.363244, 149.168801, 20)
-    vehicle.simple_goto(point2, groundspeed=10)
-
-    # sleep so we can see the change in map
-    time.sleep(30)
+    #  point2 = LocationGlobalRelative(-10, 0, 20)
+    #  vehicle.simple_goto(point2, groundspeed=10)
+    #  send_ned_velocity(-100, 0, 0, 30, vehicle)
+    #  send_ned_velocity(0, -100, 0, 30, vehicle)
+    goto(10,0,vehicle.simple_goto)
+    #  sleep so we can see the change in map
+    #  time.sleep(30)
 
     print("Returning to Launch")
     vehicle.mode = VehicleMode("RTL")
 
-    # Close vehicle object before exiting script
+    #  Close vehicle object before exiting script
     print("Close vehicle object")
     vehicle.close()
-
+#
     ################### MOVEMENT BY SIMPLE_GOTO/AIRSPEED END #######################
