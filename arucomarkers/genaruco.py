@@ -54,8 +54,13 @@ print(ARUCO_DICT[args["type"]])
 # lets gen some markers
 print("[INFO] generating AruCo tag type '{}' with ID '{}'".format(args["type"], args["id"]))
 
+<<<<<<< HEAD
+tag = np.zeros((1200, 1200, 1), dtype="uint8")
+cv2.aruco.drawMarker(arucodict, args["id"], 1200, tag, 1)
+=======
 tag = np.zeros((imgSize, imgSize, 1), dtype="uint8")
 cv2.aruco.drawMarker(arucodict, args["id"], imgSize, tag, 1)
+>>>>>>> ddef7aebbce80428c80d9d6ad7dcabfc50dcb56e
 
 cv2.imwrite(args["output"], tag)
 cv2.imshow("ArUCo Tag", tag)
