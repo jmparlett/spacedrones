@@ -21,7 +21,7 @@ The changes can be observed on the map when using `mavproxy` with the console an
 The `dronekit_basics.py` file is included in the main file and provides the API to control the drone. You should
 review the functions in there if you want to understand the interface (its really rough now and is definitely not final).
 
-1. First we connect to the using the `connectMyCopter()` function.
+1. First we connect to the mavlink feed using the `connectMyCopter()` function.
 2. Then we call `arm_and_takeoff(<height>,<vehicle>)` where vehicle is the object returned by our connect function.
 3. Then we start the cli.
 4. within the cli when you press an arrow key we use the `goto(x,y,<vehicle>)` function to move the drone by a distance
