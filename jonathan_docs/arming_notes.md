@@ -1,5 +1,5 @@
 # Arming the drone
-We turned a ton of stuff, its kinda sketch, but its all recorded here.
+We turned off a ton of stuff, its kinda sketch, but its all recorded here.
 
 ## Shit we turned off
 - `FS_EFK_THRESH`    0
