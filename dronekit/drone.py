@@ -27,6 +27,35 @@ logging.basicConfig(level=logging.DEBUG,
         format='%(asctime)s:%(levelname)s:%(message)s')
         #  filename=logfile_name)
 
+############### Constants ####################
+#Set up velocity vector to map to each direction.
+# vx > 0 => fly North
+# vx < 0 => fly South
+NORTH = 1
+SOUTH = -1
+
+# Note for vy:
+# vy > 0 => fly East
+# vy < 0 => fly West
+EAST = 1
+WEST = -1
+
+# Note for vz:
+# vz < 0 => ascend
+# vz > 0 => descend
+UP = -0.5
+DOWN = 0.5
+
+################################ Utility Functions ###################################
+# sin and cosine for degrees
+def dsin(n):
+    '''take a angle in degrees n and return cosine of the angle'''
+    return round(math.sin(math.radians(n)),5)
+
+def dcos(n):
+    '''take a angle in degrees n and return sine of the angle'''
+    return round(math.cos(math.radians(n)),5)
+
 #################### GOTO for movement by n/e from current locations in meters #######################
 # These function are used in the calculation of movement for the goto functions
 def get_location_metres(original_location, dNorth, dEast):
@@ -71,12 +100,14 @@ def get_distance_metres(aLocation1, aLocation2):
 
 
 class Drone:
-    def __init__(self, connection_string):
+    def __init__(self, connection_string, backtrack = True):
        try:
-           self.vehicle = connect(connection_string,wait_ready=True)
+           self.vehicle = connect(connection_string, wait_ready=True)
        except Exception:
            logging.error("Could not connect to mavlink stream")
        self.logfile_name = logfile_name
+       self.backtrack = backtrack
+       self.move_record = [] # store record of movements
     
     def get_logfile(self):
         '''
@@ -119,62 +150,133 @@ class Drone:
             time.sleep(1)
 
     ###################### Movement ###########################
-    def goto(self, dNorth, dEast):
-        '''
-        This function moves the drone to a position relative to its currentLocation according to the following scheme.
-        dNorth = forward
-        dEast = right 
-        -dNorth = forward
-        -dEast = left
-        '''
-        gotoFunction=self.vehicle.simple_goto
-        currentLocation=self.vehicle.location.global_relative_frame
-        targetLocation=get_location_metres(currentLocation, dNorth, dEast)
-        targetDistance=get_distance_metres(currentLocation, targetLocation)
-        gotoFunction(targetLocation)
+    def send_ned_velocity(self, velocity_x, velocity_y, velocity_z, duration):
+        """
+        Taken from the dronekit examples, on github https://dronekit-python.readthedocs.io/en/latest/examples/
+        Move vehicle in direction based on specified velocity vectors and
+        for the specified duration.
 
-        prevRemainingDistance=0
-        repCount=0 #number of times we've encountered to same distance
-        while self.vehicle.mode.name=="GUIDED": #Stop action if we are no longer in guided mode.
-            
-            if repCount > 4:
-                break # we're stuck in a loop better to leave
-            remainingDistance=get_distance_metres(self.vehicle.location.global_frame, targetLocation)
-            if remainingDistance>=(prevRemainingDistance-0.01):
-                repCount+=1
-            #  if remainingDistance<=targetDistance*0.1: #Just below target, in case of undershoot.
-            if remainingDistance<=targetDistance*0.25: #Just below target, in case of undershoot.
-                logging.info("Reached target")
-                break;
-            # log remaining distance so we can visualize
-            #  print(type(remainingDistance), "is type of remainingDistance")
-            logging.info("Distance to target: %f",remainingDistance)
-            time.sleep(2)
-            prevRemainingDistance=remainingDistance
+        This uses the SET_POSITION_TARGET_LOCAL_NED command with a type mask enabling only 
+        velocity components 
+        (http://dev.ardupilot.com/wiki/copter-commands-in-guided-mode/#set_position_target_local_ned).
+        
+        Note that from AC3.3 the message should be re-sent every second (after about 3 seconds
+        with no message the velocity will drop back to zero). In AC3.2.1 and earlier the specified
+        velocity persists until it is canceled. The code below should work on either version 
+        (sending the message multiple times does not cause problems).
+        
+        See the above link for information on the type_mask (0=enable, 1=ignore). 
+        At time of writing, acceleration and yaw bits are ignored.
+        """
+        msg = self.vehicle.message_factory.set_position_target_local_ned_encode(
+            0,       # time_boot_ms (not used)
+            0, 0,    # target system, target component
+            mavutil.mavlink.MAV_FRAME_LOCAL_NED, # frame
+            0b0000111111000111, # type_mask (only speeds enabled)
+            0, 0, 0, # x, y, z positions (not used)
+            velocity_x, velocity_y, velocity_z, # x, y, z velocity in m/s
+            0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
+            0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink) 
 
-    def move_left(self):
-        '''
-        move vehicle 1 meter left of current position
-        '''
-        self.goto(0,-1)
-
-    def move_right(self):
-        '''
-        move vehicle 1 meter right of current position
-        '''
-        self.goto(0,1)
-
-    def move_forward(self):
-        '''
-        move vehicle 1 meter forward of current position
-        '''
-        self.goto(1,0)
+        # send command to vehicle on 1 Hz cycle
+        for x in range(0,duration):
+            self.vehicle.send_mavlink(msg)
+            time.sleep(1)
     
-    def move_back(self):
+    def condition_yaw(self, heading, relative=True):
+        """
+        Send MAV_CMD_CONDITION_YAW message to point vehicle at a specified heading (in degrees).
+
+        This method sets an absolute heading by default, but you can set the `relative` parameter
+        to `True` to set yaw relative to the current yaw heading.
+
+        By default the yaw of the vehicle will follow the direction of travel. After setting 
+        the yaw using this function there is no way to return to the default yaw "follow direction 
+        of travel" behaviour (https://github.com/diydrones/ardupilot/issues/2427)
+
+        For more information see: 
+        http://copter.ardupilot.com/wiki/common-mavlink-mission-command-messages-mav_cmd/#mav_cmd_condition_yaw
+        """
+        if relative:
+            is_relative = 1 #yaw relative to direction of travel
+        else:
+            is_relative = 0 #yaw is an absolute angle
+        # create the CONDITION_YAW command using command_long_encode()
+        msg = self.vehicle.message_factory.command_long_encode(
+            0, 0,    # target system, target component
+            mavutil.mavlink.MAV_CMD_CONDITION_YAW, #command
+            0, #confirmation
+            heading,    # param 1, yaw in degrees
+            0,          # param 2, yaw speed deg/s
+            1,          # param 3, direction -1 ccw, 1 cw
+            is_relative, # param 4, relative offset 1, absolute angle 0
+            0, 0, 0)    # param 5 ~ 7 not used
+        # send command to vehicle
+        self.vehicle.send_mavlink(msg)
+
+       
+    def move(self, theta, delta_y, radius, SPEED=1):
         '''
-        move vehicle 1 meter backward of current position
+        This allows you to specify a location to move in polar coords
+        theta: angle relative to nose of drone in degrees
+        phi: angle relative to bottom of drone in degrees. Set to 0 if moving in xy
+        radius: distance to move
+        SPEED: speed in m/s (magnitude of velocity) optional, defaults to 1
+
+
+        Given these parameters we will set velocity vectors of drone accordingly
         '''
-        self.goto(-1,0)
+        
+        if self.backtrack: # if set save movements so we can backtrack later
+            self.move_record.append((theta,delta_y,radius))
+        #  print("Params: ",(SPEED*dcos(theta),SPEED*dsin(theta),SPEED*dcos(phi)*radius,radius))
+        self.send_ned_velocity(SPEED*dcos(theta),SPEED*dsin(theta),SPEED*delta_y,radius)
+
+    def move_sphereical(self, theta, phi, radius, SPEED=1):
+        '''
+        This allows you to specify a location to move in polar coords
+        theta: angle relative to nose of drone in degrees
+        phi: angle relative to bottom of drone in degrees. Set to 0 if moving in xy
+        radius: distance to move
+        SPEED: speed in m/s (magnitude of velocity) optional, defaults to 1
+
+
+        Given these parameters we will set velocity vectors of drone accordingly
+        '''
+        
+        if self.backtrack: # if set save movements so we can backtrack later
+            self.move_record.append((theta, phi, radius))
+        print("Params: ",(SPEED*dcos(theta)*dsin(phi)*radius,SPEED*dsin(theta)*dsin(phi)*radius,SPEED*radius*dcos(phi),radius))
+        self.send_ned_velocity(SPEED*dcos(theta)*dsin(phi)*radius,
+                               SPEED*dsin(theta)*dsin(phi)*radius,
+                               SPEED*radius*dcos(phi),radius)
+
+    def backtrack_movements(self):
+        # turn off movement recording so we dont loop forever
+        self.backtrack = False
+
+        while self.move_record != []:
+            theta, delta_y, radius = self.move_record.pop()
+            print("moves left", len(self.move_record))
+            print(theta,delta_y,radius)
+            self.move((180+theta)%360,-delta_y,radius)
+
+        # re-enable backtracking in case our flight isn't finished
+        self.backtrack = False
+
+    def backtrack_movements_sphereical(self):
+        # turn off movement recording so we dont loop forever
+        self.backtrack = False
+
+        while self.move_record != []:
+            theta, phi, radius = self.move_record.pop()
+            print("moves left", len(self.move_record))
+            print(theta,phi,radius)
+            self.move_sphereical((180+theta)%360,(180+phi)%360,radius)
+
+        # re-enable backtracking in case our flight isn't finished
+        self.backtrack = False
+
 
     def land_and_close(self):
         logging.info('Returning to Launch')
@@ -192,11 +294,16 @@ if __name__ == "__main__":
     # take off to target altitude
     drone.arm_and_takeoff(5)
 
-    # fly a box
-    drone.move_forward()
-    drone.move_left()
-    drone.move_back()
-    drone.move_right()
+    # fly hex
+    drone.move_sphereical(60,90,5)
+    drone.move_sphereical(120,90,5)
+    #  drone.move_sphereical(180,90,5)
+    #  drone.move_sphereical(240,90,5)
+    #  drone.move_sphereical(300,90,5)
+    #  drone.move_sphereical(360,90,5)
+#
+    # move back to start
+    drone.backtrack_movements_sphereical()
     
     # land the drone and close the connection
     drone.land_and_close()
