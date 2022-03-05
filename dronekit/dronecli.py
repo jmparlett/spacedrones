@@ -1,4 +1,0 @@
-from drone import Drone
-
-
-
