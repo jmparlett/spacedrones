@@ -93,9 +93,9 @@ def get_distance_metres(aLocation1, aLocation2):
 
 
 class Drone:
-    def __init__(self, connection_string, backtrack = True):
+    def __init__(self, connection_string, baud = 576600, backtrack = True):
        try:
-           self.vehicle = connect(connection_string, wait_ready=True)
+           self.vehicle = connect(connection_string, baud, wait_ready=True)
        except Exception:
            logging.error("Could not connect to mavlink stream")
        self.logfile_name = logfile_name
@@ -131,6 +131,9 @@ class Drone:
 
         logging.info("Taking off!")
         self.vehicle.simple_takeoff(target_altitude) # Take off to target altitude
+
+        # attempt to takeoff with velocity
+        #  self.move_to_point_R(0,0,target_altitude)
 
         # Wait until the vehicle reaches a safe height before processing the goto (otherwise the command
         #  after Vehicle.simple_takeoff will execute immediately).
