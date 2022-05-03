@@ -1,3 +1,10 @@
+dronekit==2.9.2
+future==0.18.2
+lxml==4.8.0
+MAVProxy==1.8.49
+monotonic==1.6
 numpy==1.22.3
 opencv-contrib-python==4.5.5.64
+pymavlink==2.4.29
+pyserial==3.5
 RPi.GPIO==0.7.1
