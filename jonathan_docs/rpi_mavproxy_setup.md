@@ -23,7 +23,19 @@ We'll connect to pins 4,6,8, and 10 on the RPI
 |8|TX (Transmit goes to receive on Pixhawk)|
 |10|RX (Receive goes to transmit on Pixhawk)|
 
-## Including pinout here for reference
+## Telem Port Pinout
+Pin |	Signal |	Volt|
+|--|--|--|
+|1 (red) 	|VCC |	+5V
+|2 (blk) 	|TX (OUT) |	+3.3V
+|3 (blk) 	|RX (IN) |	+3.3V
+|4 (blk) 	|CTS |	+3.3V
+|5 (blk) 	|RTS 	|+3.3V
+|6 (blk) |	GND |	GND
+
+
+
+## RPI Pinout
 ![Pinout](imgs/pinout.png)
 
 ## Getting a Mavproxy shell
