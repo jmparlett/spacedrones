@@ -131,3 +131,6 @@ You done really need to think about this at all just when you login you should s
 which indicates your in the correct environment.
 
 You should regularly record the packages in the environment by outputting them to a text file. `pip freeze > requirements.txt`.
+
+## Setting Remote Access
+Were going to use [this](https://github.com/lakinduakash/linux-wifi-hotspot) application to enable remote access to the rpi. You can install it using the instructions provided, and use the directions to set it to start automatically. Then to connect to the PI you simply need to connect to its wireless network. I've name the SSID the same as the computer name "spaceberry".
